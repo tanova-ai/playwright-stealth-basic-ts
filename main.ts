@@ -31,6 +31,8 @@ app.post('/generate-pdf', async (req, res) => {
 
   const { url, waitForSelector, usePrintMedia } = req.body;
 
+  console.log('📄 PDF Generation Request:', { url, waitForSelector, usePrintMedia });
+
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
@@ -45,13 +47,7 @@ app.post('/generate-pdf', async (req, res) => {
 
     const page = await browser.newPage();
 
-    // Emulate print media BEFORE navigation if requested
-    // This ensures @media print styles are applied during page load
-    if (usePrintMedia) {
-      await page.emulateMedia({ media: 'print' });
-    }
-
-    // Navigate to URL
+    // Navigate to URL first
     await page.goto(url, {
       waitUntil: 'networkidle',
       timeout: 30000
@@ -62,9 +58,34 @@ app.post('/generate-pdf', async (req, res) => {
       await page.waitForSelector(waitForSelector, { timeout: 10000 });
     }
 
-    // Give the page a moment to apply print styles
+    // If usePrintMedia is true, inject a style tag to simulate print media
+    // This is more reliable than emulateMedia for PDF generation
     if (usePrintMedia) {
+      console.log('🖨️  Applying print media styles...');
+
+      // Emulate print media
+      await page.emulateMedia({ media: 'print' });
+
+      // Also inject CSS to force all @media print styles to apply
+      await page.addStyleTag({
+        content: `
+          /* Force all print:hidden elements to be hidden */
+          .print\\:hidden { display: none !important; }
+
+          /* Force all print:flex elements to be flex */
+          .print\\:flex { display: flex !important; }
+
+          /* Force all print:block elements to be block */
+          .print\\:block { display: block !important; }
+
+          /* Apply any other print-specific styles */
+        `
+      });
+
+      // Wait for styles to apply
       await page.waitForTimeout(500);
+
+      console.log('✅ Print styles applied');
     }
 
     // Generate PDF
@@ -81,6 +102,8 @@ app.post('/generate-pdf', async (req, res) => {
     });
 
     await browser.close();
+
+    console.log(`✅ PDF generated (${pdf.length} bytes)`);
 
     // Return PDF as buffer
     res.setHeader('Content-Type', 'application/pdf');
