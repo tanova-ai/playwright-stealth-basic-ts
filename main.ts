@@ -75,7 +75,7 @@ app.post('/generate-pdf', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="document.pdf"');
     res.send(pdf);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('PDF generation failed:', error);
 
     if (browser) {
@@ -84,7 +84,7 @@ app.post('/generate-pdf', async (req, res) => {
 
     res.status(500).json({
       error: 'Failed to generate PDF',
-      message: error.message
+      message: error?.message || 'Unknown error'
     });
   }
 });
