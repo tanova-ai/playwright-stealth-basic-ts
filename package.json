@@ -1,5 +1,5 @@
 {
-  "name": "playwright-basicstealth-ts",
+  "name": "playwright-pdf-service-tanova",
   "version": "1.0.0",
   "main": "dist/main.js",
   "scripts": {
@@ -11,15 +11,13 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "PDF generation service for Tanova",
   "dependencies": {
     "@types/node": "^22.15.29",
-    "playwright-extra": "^4.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "@types/express": "^4.17.21",
+    "express": "^4.18.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
-  },
-  "devDependencies": {
+    "typescript": "^5.8.3",
     "playwright": "1.50.0"
   }
 }
