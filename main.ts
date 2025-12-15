@@ -1,93 +1,95 @@
-import { chromium } from 'playwright-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+/**
+ * Playwright PDF Generation Service for Tanova
+ * Replace the contents of main.ts in your Railway Playwright repo with this code
+ */
 
-// Add stealth plugin - this uses the actual puppeteer stealth plugin!
-chromium.use(StealthPlugin());
+import express from 'express';
+import { chromium } from 'playwright';
 
-async function testBotDetection() {
-    console.log('🚀 Starting Playwright Stealth Test...\n');
+const app = express();
+const PORT = process.env.PORT || 3000;
+const SECRET = process.env.PLAYWRIGHT_SERVICE_SECRET;
 
-    // Launch browser with stealth
-    const browser = await chromium.launch({
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-blink-features=AutomationControlled'
-        ]
+app.use(express.json());
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'playwright-pdf-generator' });
+});
+
+// PDF generation endpoint
+app.post('/generate-pdf', async (req, res) => {
+  // Authentication check
+  const authHeader = req.headers.authorization;
+
+  // Skip auth for internal Railway network
+  const isInternalRequest = req.headers['x-forwarded-for'] === undefined;
+
+  if (!isInternalRequest && authHeader !== `Bearer ${SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { url, waitForSelector } = req.body;
+
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+
+  let browser;
+  try {
+    // Launch browser
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
-    const context = await browser.newContext({
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        viewport: { width: 1366, height: 768 }
+    const page = await browser.newPage();
+
+    // Navigate to URL
+    await page.goto(url, {
+      waitUntil: 'networkidle',
+      timeout: 30000
     });
 
-    const page = await context.newPage();
-
-    try {
-        // Test with bot detection site
-        console.log('📍 Testing: https://bot.sannysoft.com/');
-        await page.goto('https://bot.sannysoft.com/', { waitUntil: 'load' });
-
-        // Get page title
-        const title = await page.title();
-        console.log(`📄 Page title: ${title}`);
-
-        // Log key page elements that indicate detection status
-        console.log('\n🧪 Detection Test Results:');
-        try {
-            const results = await page.$$eval('table tr', rows => {
-                return rows
-                    .map(row => {
-                        const cells = row.querySelectorAll('td');
-                        if (cells.length !== 2 && cells.length !== 3) return null;
-
-                        const name = cells[0]?.innerText?.trim();
-                        const result = cells[1]?.innerText?.trim();
-                        const className = cells[1]?.className;
-
-                        return {
-                            name,
-                            result,
-                            status: className?.includes('passed') ? 'passed'
-                                : className?.includes('warn') ? 'warn'
-                                    : className?.includes('failed') ? 'failed'
-                                        : 'unknown'
-                        };
-                    })
-                    .filter(Boolean);
-            });
-
-            // Analyze and report
-            const failed = results.filter(r => r?.status === 'failed');
-            const warned = results.filter(r => r?.status === 'warn');
-            const passed = results.filter(r => r?.status === 'passed');
-
-            console.log(`\n✅ Passed: ${passed.length}`);
-            console.log(`⚠️  Warnings: ${warned.length}`);
-            console.log(`❌ Failed: ${failed.length}`);
-
-            if (failed.length > 0 || warned.length > 0) {
-                console.log('\n🧪 Problematic tests:\n');
-                [...failed, ...warned].forEach(r => {
-                    console.log(`  [${r?.status.toUpperCase()}] ${r?.name} → ${r?.result}`);
-                });
-            } else {
-                console.log('\n🎉 All tests passed with no issues!');
-            }
-        } catch (error) {
-            console.log('ℹ️  Could not extract detailed test results');
-        }
-
-        console.log('\n✅ Test completed successfully!');
-
-    } catch (error) {
-        console.error('❌ Test failed:', error);
-    } finally {
-        await browser.close();
+    // Optional: wait for specific selector to ensure content is loaded
+    if (waitForSelector) {
+      await page.waitForSelector(waitForSelector, { timeout: 10000 });
     }
-}
 
-// Run the test
-testBotDetection().catch(console.error);
+    // Generate PDF
+    const pdf = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px'
+      }
+    });
+
+    await browser.close();
+
+    // Return PDF as buffer
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="document.pdf"');
+    res.send(pdf);
+
+  } catch (error) {
+    console.error('PDF generation failed:', error);
+
+    if (browser) {
+      await browser.close().catch(console.error);
+    }
+
+    res.status(500).json({
+      error: 'Failed to generate PDF',
+      message: error.message
+    });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Playwright PDF service running on port ${PORT}`);
+  console.log(`   Auth: ${SECRET ? 'Enabled' : 'Disabled (set PLAYWRIGHT_SERVICE_SECRET)'}`);
+});
