@@ -29,7 +29,7 @@ app.post('/generate-pdf', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { url, waitForSelector } = req.body;
+  const { url, waitForSelector, usePrintMedia } = req.body;
 
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
@@ -56,16 +56,22 @@ app.post('/generate-pdf', async (req, res) => {
       await page.waitForSelector(waitForSelector, { timeout: 10000 });
     }
 
+    // Conditionally emulate print media to apply @media print CSS styles
+    if (usePrintMedia) {
+      await page.emulateMedia({ media: 'print' });
+    }
+
     // Generate PDF
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: {
-        top: '20px',
-        right: '20px',
-        bottom: '20px',
-        left: '20px'
-      }
+        top: '10mm',
+        right: '10mm',
+        bottom: '10mm',
+        left: '10mm'
+      },
+      preferCSSPageSize: false
     });
 
     await browser.close();
