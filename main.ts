@@ -45,6 +45,12 @@ app.post('/generate-pdf', async (req, res) => {
 
     const page = await browser.newPage();
 
+    // Emulate print media BEFORE navigation if requested
+    // This ensures @media print styles are applied during page load
+    if (usePrintMedia) {
+      await page.emulateMedia({ media: 'print' });
+    }
+
     // Navigate to URL
     await page.goto(url, {
       waitUntil: 'networkidle',
@@ -56,9 +62,9 @@ app.post('/generate-pdf', async (req, res) => {
       await page.waitForSelector(waitForSelector, { timeout: 10000 });
     }
 
-    // Conditionally emulate print media to apply @media print CSS styles
+    // Give the page a moment to apply print styles
     if (usePrintMedia) {
-      await page.emulateMedia({ media: 'print' });
+      await page.waitForTimeout(500);
     }
 
     // Generate PDF
