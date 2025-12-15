@@ -1,6 +1,9 @@
 /**
  * Playwright PDF Generation Service for Tanova
  * Replace the contents of main.ts in your Railway Playwright repo with this code
+ *
+ * Note: Print mode is now handled via ?print=true query parameter in the URL,
+ * so we don't need to emulate print media or inject CSS
  */
 
 import express from 'express';
@@ -29,9 +32,9 @@ app.post('/generate-pdf', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { url, waitForSelector, usePrintMedia } = req.body;
+  const { url, waitForSelector } = req.body;
 
-  console.log('📄 PDF Generation Request:', { url, waitForSelector, usePrintMedia });
+  console.log('📄 PDF Generation Request:', { url, waitForSelector });
 
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
@@ -47,7 +50,7 @@ app.post('/generate-pdf', async (req, res) => {
 
     const page = await browser.newPage();
 
-    // Navigate to URL first
+    // Navigate to URL (URL should contain ?print=true for print-optimized layout)
     await page.goto(url, {
       waitUntil: 'networkidle',
       timeout: 30000
@@ -56,36 +59,6 @@ app.post('/generate-pdf', async (req, res) => {
     // Optional: wait for specific selector to ensure content is loaded
     if (waitForSelector) {
       await page.waitForSelector(waitForSelector, { timeout: 10000 });
-    }
-
-    // If usePrintMedia is true, inject a style tag to simulate print media
-    // This is more reliable than emulateMedia for PDF generation
-    if (usePrintMedia) {
-      console.log('🖨️  Applying print media styles...');
-
-      // Emulate print media
-      await page.emulateMedia({ media: 'print' });
-
-      // Also inject CSS to force all @media print styles to apply
-      await page.addStyleTag({
-        content: `
-          /* Force all print:hidden elements to be hidden */
-          .print\\:hidden { display: none !important; }
-
-          /* Force all print:flex elements to be flex */
-          .print\\:flex { display: flex !important; }
-
-          /* Force all print:block elements to be block */
-          .print\\:block { display: block !important; }
-
-          /* Apply any other print-specific styles */
-        `
-      });
-
-      // Wait for styles to apply
-      await page.waitForTimeout(500);
-
-      console.log('✅ Print styles applied');
     }
 
     // Generate PDF
